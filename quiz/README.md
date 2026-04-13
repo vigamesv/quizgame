@@ -42,7 +42,6 @@ Open `http://YOUR_LOCAL_IP:8080` on all devices. Players go to `/join.html` and 
 > Note: State is shared via `localStorage`, which only works when everyone is on the **same browser/device**. For true real-time multi-device play (separate phones), you'd need a WebSocket server backend. This is a future addition.
 
 ---
-
 ## Pages
 
 | File | Purpose |
