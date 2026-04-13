@@ -56,7 +56,3 @@ Open `http://YOUR_LOCAL_IP:8080` on all devices. Players go to `/join.html` and 
 | `join.html` | Player join |
 
 ---
-
-## API key
-
-Get one at [console.anthropic.com](https://console.anthropic.com). It's only used in your browser session and never stored anywhere.
