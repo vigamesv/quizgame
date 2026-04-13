@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz — Results</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="starfield"><canvas id="stars"></canvas></div>
+<div id="app">
+  <div style="width:100%;max-width:480px;">
+
+    <div class="winner-block">
+      <div id="winnerName" class="winner-name"></div>
+      <div id="winnerPts" class="winner-pts"></div>
+    </div>
+
+    <div class="panel mt-3">
+      <div class="section-label">Results</div>
+      <div id="finalScores" class="mt-2"></div>
+      <div class="divider"></div>
+      <button class="btn btn-accent btn-block" onclick="again()">Play again →</button>
+      <button class="btn btn-block mt-1" onclick="sameTopic()">Same topic, new questions</button>
+      <a href="index.html" class="btn btn-block mt-1">← Home</a>
+    </div>
+
+  </div>
+</div>
+
+<script src="js/shared.js"></script>
+<script>
+  initStarfield();
+
+  const state = loadState();
+  if (!state?.scores) { window.location.href = 'index.html'; }
+
+  const { players, scores, topic, questions } = state;
+  const sorted = [...players].sort((a, b) => (scores[b] || 0) - (scores[a] || 0));
+  const winner = sorted[0];
+
+  if (players.length === 1) {
+    document.getElementById('winnerName').textContent = 'Done';
+    document.getElementById('winnerPts').textContent = `${scores[winner] || 0} pts across ${questions.length} questions`;
+  } else {
+    document.getElementById('winnerName').textContent = winner;
+    document.getElementById('winnerPts').textContent = `${scores[winner] || 0} pts`;
+  }
+
+  const MEDALS = ['first', 'second', 'third'];
+  document.getElementById('finalScores').innerHTML = sorted.map((p, i) => `
+    <div class="score-row ${MEDALS[i] || ''}">
+      <span class="rank-num">${i + 1}</span>
+      ${renderAvatar(p, players.indexOf(p), 28, '0.58rem')}
+      <span class="score-name">${p}</span>
+      <span class="score-pts">${scores[p] || 0}</span>
+    </div>
+  `).join('');
+
+  function again() {
+    clearState();
+    window.location.href = 'host.html';
+  }
+
+  function sameTopic() {
+    saveState({
+      phase: 'loading',
+      topic: state.topic,
+      count: state.count,
+      timer: state.timer,
+      apiKey: state.apiKey,
+      roomCode: Math.random().toString(36).substr(2, 4).toUpperCase(),
+      players: state.players,
+      scores: Object.fromEntries(state.players.map(p => [p, 0])),
+      questions: [],
+      currentQ: 0
+    });
+    window.location.href = 'loading.html';
+  }
+</script>
+</body>
+</html>

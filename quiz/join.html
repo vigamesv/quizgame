@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz — Join</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="starfield"><canvas id="stars"></canvas></div>
+<div id="app">
+  <a class="logo" href="index.html">Quiz</a>
+  <div class="panel">
+
+    <div class="field">
+      <label class="field-label">Your name</label>
+      <input class="input" id="joinName" placeholder="Name..." maxlength="20" />
+    </div>
+
+    <div class="field">
+      <label class="field-label">Room code</label>
+      <input class="input" id="joinCode" placeholder="XXXX" maxlength="4"
+        style="text-transform:uppercase;font-family:'IBM Plex Mono',monospace;font-size:1.6rem;letter-spacing:0.3em;text-align:center;"
+        oninput="this.value=this.value.toUpperCase()" />
+    </div>
+
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.85rem 1rem;margin-bottom:1.1rem;">
+      <p style="font-size:0.8rem;color:var(--muted);line-height:1.6;">
+        Multi-device play requires running this on a local server. See <code>README.md</code> for instructions.<br>
+        If everyone's on the same device, the host can add players from the <a href="lobby.html" style="color:var(--accent);text-decoration:none;">lobby</a>.
+      </p>
+    </div>
+
+    <button class="btn btn-accent btn-block" onclick="tryJoin()">Join →</button>
+    <a href="index.html" class="btn btn-block mt-1">← Back</a>
+  </div>
+</div>
+
+<script src="js/shared.js"></script>
+<script>
+  initStarfield();
+
+  function tryJoin() {
+    const name = document.getElementById('joinName').value.trim();
+    const code = document.getElementById('joinCode').value.trim().toUpperCase();
+    if (!name) { alert('Enter your name.'); return; }
+    if (code.length !== 4) { alert('Enter the 4-character room code.'); return; }
+
+    const state = loadState();
+    if (state && state.roomCode === code) {
+      if (!state.players.includes(name)) {
+        state.players.push(name);
+        state.scores[name] = 0;
+        saveState(state);
+      }
+      const dest = { lobby: 'lobby.html', game: 'game.html', results: 'results.html', loading: 'loading.html' };
+      window.location.href = dest[state.phase] || 'lobby.html';
+    } else {
+      alert(`No game found with code "${code}". Make sure you're on the same device or network as the host.`);
+    }
+  }
+
+  document.getElementById('joinCode').addEventListener('keydown', e => { if (e.key === 'Enter') tryJoin(); });
+</script>
+</body>
+</html>

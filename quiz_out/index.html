@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Quiz</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="bg">
+  <canvas id="bgStars"></canvas>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+  <div class="bg-dots"></div>
+  <div class="bg-grain"></div>
+</div>
+<div id="app">
+  <div class="wordmark" style="margin-bottom:.2rem;">Quiz</div>
+  <div class="eyebrow">Multiplayer Trivia</div>
+  <div class="panel stagger">
+    <div class="mode-cards">
+      <a class="mode-card" href="host.html">
+        <span class="icon">🎯</span>
+        <h3>Host</h3>
+        <p>Create a game and run the show</p>
+      </a>
+      <a class="mode-card" href="join.html">
+        <span class="icon">🎮</span>
+        <h3>Join</h3>
+        <p>Enter a room code to play along</p>
+      </a>
+    </div>
+    <div class="divider"></div>
+    <p class="muted text-center" style="font-size:.74rem;line-height:1.75;">
+      <strong style="color:var(--text)">Same device?</strong> Use Host and add players manually.<br>
+      <strong style="color:var(--text)">Multi-device?</strong> Run <code style="color:var(--accent)">python3 -m http.server 8080</code> in this folder,<br>
+      then open <code style="color:var(--accent)">http://YOUR_LOCAL_IP:8080</code> on every device.
+    </p>
+  </div>
+</div>
+<script src="js/shared.js"></script>
+<script>clearState(); initBackground();</script>
+</body>
+</html>

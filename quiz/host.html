@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz — Host</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="starfield"><canvas id="stars"></canvas></div>
+<div id="app">
+  <a class="logo" href="index.html">Quiz</a>
+  <div class="panel">
+
+    <div class="field">
+      <label class="field-label">Topic</label>
+      <input class="input" id="topicInput" placeholder="e.g. Black holes, Apollo missions, Mars rovers..." />
+      <div class="chips-row">
+        <span class="topic-chip" onclick="setTopic('The Solar System')">Solar System</span>
+        <span class="topic-chip" onclick="setTopic('Space exploration history')">Space History</span>
+        <span class="topic-chip" onclick="setTopic('Astronomy and stars')">Astronomy</span>
+        <span class="topic-chip" onclick="setTopic('Sci-fi movies and TV')">Sci-Fi</span>
+        <span class="topic-chip" onclick="setTopic('Black holes and cosmology')">Black Holes</span>
+        <span class="topic-chip" onclick="setTopic('NASA missions')">NASA</span>
+        <span class="topic-chip" onclick="setTopic('Exoplanets and alien life')">Exoplanets</span>
+        <span class="topic-chip" onclick="setTopic('General knowledge')">General</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Questions — <span id="qLabel">6</span></label>
+      <input type="range" class="input" min="3" max="12" value="6" id="qSlider"
+        oninput="document.getElementById('qLabel').textContent=this.value" />
+    </div>
+
+    <div class="field">
+      <label class="field-label">Seconds per question — <span id="tLabel">20</span>s</label>
+      <input type="range" class="input" min="10" max="45" step="5" value="20" id="tSlider"
+        oninput="document.getElementById('tLabel').textContent=this.value" />
+    </div>
+
+    <div class="field">
+      <label class="field-label">Players — same device</label>
+      <div style="display:flex;gap:6px;">
+        <input class="input" id="playerInput" placeholder="Name..." maxlength="20" style="flex:1;" />
+        <button class="btn btn-sm" onclick="addPlayer()">Add</button>
+      </div>
+      <div class="chips-row" id="playerChips"></div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Anthropic API key</label>
+      <input class="input" id="apiKey" type="password" placeholder="sk-ant-..." />
+      <p class="muted mt-1" style="font-size:0.72rem;">Used only in this session. Never stored.</p>
+    </div>
+
+    <button class="btn btn-accent btn-block" onclick="start()">Start →</button>
+    <a href="index.html" class="btn btn-block mt-1">← Back</a>
+  </div>
+</div>
+
+<script src="js/shared.js"></script>
+<script>
+  initStarfield();
+  let players = [];
+
+  function setTopic(t) { document.getElementById('topicInput').value = t; }
+
+  function addPlayer() {
+    const inp = document.getElementById('playerInput');
+    const name = inp.value.trim();
+    if (!name || players.includes(name) || players.length >= 8) return;
+    players.push(name);
+    inp.value = '';
+    renderChips();
+  }
+  document.getElementById('playerInput').addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(); });
+
+  function removePlayer(name) {
+    players = players.filter(p => p !== name);
+    renderChips();
+  }
+
+  function renderChips() {
+    document.getElementById('playerChips').innerHTML = players.map((p, i) => `
+      <span class="player-pill">
+        ${renderAvatar(p, i, 20, '0.48rem')}
+        ${p}
+        <span style="cursor:pointer;color:var(--dim);margin-left:3px;" onclick="removePlayer('${p.replace(/'/g,"\\'")}')">×</span>
+      </span>
+    `).join('');
+  }
+
+  async function start() {
+    const topic = document.getElementById('topicInput').value.trim() || 'space and astronomy';
+    const count = parseInt(document.getElementById('qSlider').value);
+    const timer = parseInt(document.getElementById('tSlider').value);
+    const apiKey = document.getElementById('apiKey').value.trim();
+
+    if (!apiKey) { alert('Enter your Anthropic API key.'); return; }
+
+    const roomCode = Math.random().toString(36).substr(2, 4).toUpperCase();
+    const scores = Object.fromEntries(players.map(p => [p, 0]));
+
+    saveState({ phase: 'loading', topic, count, timer, apiKey, roomCode, players, scores, questions: [], currentQ: 0 });
+    window.location.href = 'loading.html';
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz — Game</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    #app { justify-content: flex-start; padding-top: 1.5rem; }
+    .game-wrap { width: 100%; max-width: 760px; }
+    .q-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+    .q-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; letter-spacing: 0.1em; color: var(--muted); }
+    .q-row { display: flex; align-items: flex-start; gap: 1.25rem; }
+    .q-text { font-size: 1.15rem; line-height: 1.5; flex: 1; font-weight: 400; }
+    .buzz-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 1.1rem 0 0.4rem; }
+    .feedback { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; min-height: 24px; margin-top: 0.6rem; }
+  </style>
+</head>
+<body>
+<div id="starfield"><canvas id="stars"></canvas></div>
+<div id="app">
+  <div class="game-wrap">
+
+    <div class="score-strip" id="scoreStrip"></div>
+
+    <div class="q-header">
+      <span class="q-meta" id="qMeta"></span>
+      <span class="q-meta" id="qTopic"></span>
+    </div>
+
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+
+    <div class="q-row">
+      <p class="q-text" id="qText"></p>
+      <div class="timer-ring">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle class="bg" cx="32" cy="32" r="27"/>
+          <circle class="fg" id="timerArc" cx="32" cy="32" r="27"
+            stroke-dasharray="169.6" stroke-dashoffset="0"/>
+        </svg>
+        <div class="timer-num" id="timerDisplay">20</div>
+      </div>
+    </div>
+
+    <div class="answer-grid" id="answersEl"></div>
+    <div id="buzzSection"></div>
+    <div class="feedback" id="feedback"></div>
+    <div class="explanation" id="explanationEl"></div>
+
+    <button class="btn btn-accent btn-block mt-2" id="nextBtn" style="display:none;" onclick="nextQ()">
+      Next →
+    </button>
+
+  </div>
+</div>
+
+<script src="js/shared.js"></script>
+<script>
+  initStarfield();
+
+  const state = loadState();
+  if (!state || state.phase !== 'game' || !state.questions?.length) { window.location.href = 'index.html'; }
+
+  let { questions, players, scores, timer: maxTime, topic } = state;
+  let currentQ = state.currentQ || 0;
+  let timeLeft, answered, buzzedPlayer, timerInterval;
+
+  document.getElementById('qTopic').textContent = topic;
+
+  function renderStrip() {
+    const sorted = [...players].sort((a, b) => (scores[b] || 0) - (scores[a] || 0));
+    document.getElementById('scoreStrip').innerHTML = sorted.map(p => `
+      <span class="score-chip">
+        ${renderAvatar(p, players.indexOf(p), 20, '0.46rem')}
+        <span>${p}</span>
+        <span class="pts">${scores[p] || 0}</span>
+      </span>
+    `).join('');
+  }
+
+  function showQ() {
+    const q = questions[currentQ];
+    answered = false; buzzedPlayer = null; timeLeft = maxTime;
+
+    document.getElementById('qMeta').textContent = `${currentQ + 1} / ${questions.length}`;
+    document.getElementById('qText').textContent = q.q;
+    document.getElementById('progressFill').style.width = `${(currentQ / questions.length) * 100}%`;
+    document.getElementById('explanationEl').className = 'explanation';
+    document.getElementById('nextBtn').style.display = 'none';
+    document.getElementById('feedback').textContent = '';
+
+    const multi = players.length > 1;
+    const LETTERS = ['A','B','C','D'];
+    document.getElementById('answersEl').innerHTML = q.options.map((opt, i) => `
+      <button class="answer-btn" id="ans${i}" onclick="pick(${i})" ${multi ? 'disabled' : ''}>
+        <span class="letter">${LETTERS[i]}</span>
+        <span>${opt}</span>
+      </button>
+    `).join('');
+
+    if (multi) renderBuzz();
+    else document.getElementById('buzzSection').innerHTML = '';
+
+    updateArc(1);
+    document.getElementById('timerDisplay').textContent = maxTime;
+    document.getElementById('timerDisplay').style.color = 'var(--text)';
+    document.getElementById('timerArc').style.stroke = 'var(--accent)';
+    startTimer();
+    renderStrip();
+  }
+
+  function renderBuzz() {
+    document.getElementById('buzzSection').innerHTML =
+      `<p class="buzz-label">Buzz in</p>` +
+      players.map((p, i) => `
+        <button class="buzz-btn" id="buzz_${i}" onclick="buzz('${p.replace(/'/g,"\\'")}')">
+          ${renderAvatar(p, i, 26, '0.54rem')}
+          <span>${p}</span>
+        </button>
+      `).join('');
+  }
+
+  function buzz(player) {
+    if (answered || buzzedPlayer) return;
+    buzzedPlayer = player;
+    document.getElementById('feedback').textContent = `${player} —`;
+    players.forEach((_, i) => { const b = document.getElementById(`buzz_${i}`); if (b) b.disabled = true; });
+    for (let i = 0; i < 4; i++) { const b = document.getElementById(`ans${i}`); if (b) b.disabled = false; }
+  }
+
+  function pick(idx) {
+    if (answered) return;
+    answered = true;
+    clearInterval(timerInterval);
+
+    const q = questions[currentQ];
+    const correct = q.correct;
+    const scorer = buzzedPlayer || (players.length === 1 ? players[0] : null);
+
+    for (let i = 0; i < q.options.length; i++) {
+      const btn = document.getElementById(`ans${i}`);
+      if (!btn) continue;
+      btn.disabled = true;
+      if (i === correct) btn.classList.add('correct');
+      else if (i === idx && i !== correct) btn.classList.add('wrong');
+    }
+
+    if (scorer) {
+      if (idx === correct) {
+        const pts = Math.max(100, Math.round((timeLeft / maxTime) * 1000));
+        scores[scorer] = (scores[scorer] || 0) + pts;
+        document.getElementById('feedback').innerHTML = `<span style="color:var(--green)">${scorer} +${pts}</span>`;
+      } else {
+        document.getElementById('feedback').innerHTML = `<span style="color:var(--red)">${scorer} — wrong</span>`;
+      }
+    }
+
+    document.getElementById('explanationEl').textContent = q.explanation;
+    document.getElementById('explanationEl').classList.add('visible');
+    document.getElementById('nextBtn').style.display = 'block';
+    players.forEach((_, i) => { const b = document.getElementById(`buzz_${i}`); if (b) b.disabled = true; });
+    renderStrip();
+  }
+
+  function updateArc(f) {
+    document.getElementById('timerArc').style.strokeDashoffset = 169.6 * (1 - f);
+  }
+
+  function startTimer() {
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      document.getElementById('timerDisplay').textContent = timeLeft;
+      updateArc(timeLeft / maxTime);
+      if (timeLeft <= 5) {
+        document.getElementById('timerDisplay').style.color = 'var(--red)';
+        document.getElementById('timerArc').style.stroke = 'var(--red)';
+      }
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        if (!answered) {
+          answered = true;
+          const q = questions[currentQ];
+          document.getElementById(`ans${q.correct}`).classList.add('correct');
+          for (let i = 0; i < 4; i++) { const b = document.getElementById(`ans${i}`); if (b) b.disabled = true; }
+          players.forEach((_, i) => { const b = document.getElementById(`buzz_${i}`); if (b) b.disabled = true; });
+          document.getElementById('feedback').innerHTML = `<span style="color:var(--red)">Time's up</span>`;
+          document.getElementById('explanationEl').textContent = questions[currentQ].explanation;
+          document.getElementById('explanationEl').classList.add('visible');
+          document.getElementById('nextBtn').style.display = 'block';
+          renderStrip();
+        }
+      }
+    }, 1000);
+  }
+
+  function nextQ() {
+    currentQ++;
+    saveState({ ...state, scores, currentQ });
+    if (currentQ >= questions.length) {
+      saveState({ ...state, scores, currentQ, phase: 'results' });
+      window.location.href = 'results.html';
+    } else {
+      showQ();
+    }
+  }
+
+  showQ();
+</script>
+</body>
+</html>

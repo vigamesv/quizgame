@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Quiz — Generating</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="bg">
+  <canvas id="bgStars"></canvas>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+  <div class="bg-dots"></div>
+  <div class="bg-grain"></div>
+</div>
+<div id="app">
+  <div class="panel text-center stagger">
+    <div style="padding:1.5rem 1rem 2rem;">
+      <div class="spinner" id="spinnerEl"></div>
+      <p style="font-family:var(--fd);font-weight:700;font-size:1.05rem;margin-bottom:.5rem;" id="statusText">Generating questions</p>
+      <p class="muted" id="subText" style="font-size:.83rem;">This takes a few seconds...</p>
+    </div>
+  </div>
+</div>
+<script src="js/shared.js"></script>
+<script>
+initBackground();
+
+var msgs=['Generating questions...','Checking the facts...','Mixing difficulty levels...','Almost ready...'];
+var mIdx=0, subEl=document.getElementById('subText');
+subEl.style.transition='opacity .2s';
+var mInt=setInterval(function(){
+  mIdx=(mIdx+1)%msgs.length;
+  subEl.style.opacity='0';
+  setTimeout(function(){subEl.textContent=msgs[mIdx];subEl.style.opacity='1';},200);
+},2400);
+
+async function run(){
+  var state=loadState();
+  if(!state||state.phase!=='loading'){window.location.href='index.html';return;}
+  try{
+    var questions=await generateQuestions(state.topic,state.count,state.apiKey);
+    questions=shuffleAll(questions);
+    clearInterval(mInt);
+    document.getElementById('spinnerEl').style.borderTopColor='var(--green)';
+    document.getElementById('statusText').textContent='Ready!';
+    subEl.textContent=questions.length+' questions loaded.';
+    saveState(Object.assign({},state,{phase:'lobby',questions:questions}));
+    setTimeout(function(){navigate('lobby.html');},700);
+  }catch(e){
+    clearInterval(mInt);
+    document.getElementById('spinnerEl').style.display='none';
+    document.getElementById('statusText').textContent='Error generating questions';
+    subEl.innerHTML='<span style="color:var(--red);">'+escHtml(e.message)+'</span>'+
+      '<br><br><a href="host.html" class="btn btn-ghost btn-sm" style="display:inline-flex;margin-top:.5rem;">← Try again</a>';
+  }
+}
+run();
+</script>
+</body>
+</html>

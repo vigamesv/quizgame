@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Quiz — Results</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="bg">
+  <canvas id="bgStars"></canvas>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+  <div class="bg-dots"></div>
+  <div class="bg-grain"></div>
+</div>
+<div id="app">
+  <div style="width:100%;max-width:480px;">
+
+    <div class="winner-block">
+      <span class="winner-trophy" id="trophy">🏆</span>
+      <div class="winner-name" id="winnerName"></div>
+      <p class="muted mt-1" id="winnerPts" style="font-family:var(--fm);font-size:.8rem;"></p>
+    </div>
+
+    <div class="panel">
+      <div class="tag-label" style="margin-bottom:.75rem;">Final Scores</div>
+      <div id="finalScores"></div>
+      <div class="divider"></div>
+      <div id="hostBtns">
+        <button class="btn btn-primary btn-block" onclick="newGame()">New Game →</button>
+        <button class="btn btn-ghost btn-block mt-1" onclick="sameTopic()">Same topic, new questions</button>
+      </div>
+      <a href="index.html" class="btn btn-ghost btn-block mt-1" onclick="clearState()">← Home</a>
+    </div>
+
+  </div>
+</div>
+<script src="js/shared.js"></script>
+<script>
+initBackground();
+
+var state=loadState();
+if(!state||!state.scores){window.location.href='index.html';}
+
+var isHost=!!state.isHost;
+if(!isHost) document.getElementById('hostBtns').style.display='none';
+
+var players=state.players||[];
+var scores=state.scores||{};
+var qs=state.questions||[];
+
+// Sort by score
+var sorted=players.slice().sort(function(a,b){return (scores[b]||0)-(scores[a]||0);});
+var winner=sorted[0]||'';
+
+if(players.length===1){
+  document.getElementById('trophy').textContent='✓';
+  document.getElementById('trophy').style.fontSize='2.8rem';
+  document.getElementById('winnerName').textContent='Game complete';
+  document.getElementById('winnerPts').textContent=(scores[winner]||0)+' pts · '+qs.length+' questions';
+}else{
+  document.getElementById('winnerName').textContent=escHtml(winner)+' wins';
+  document.getElementById('winnerPts').textContent=(scores[winner]||0)+' points';
+}
+
+var MEDALS=['first','second','third'];
+document.getElementById('finalScores').innerHTML=sorted.map(function(p,i){
+  return '<div class="score-row '+(MEDALS[i]||'')+'">'+
+    '<span class="rank-num">'+(i+1)+'</span>'+
+    renderAvatar(p,players.indexOf(p),30,'0.6rem')+
+    '<span class="score-name">'+escHtml(p)+'</span>'+
+    '<span class="score-pts">'+(scores[p]||0)+' pts</span>'+
+  '</div>';
+}).join('');
+
+function newGame(){clearState(); navigate('host.html');}
+
+function sameTopic(){
+  if(!state.apiKey){clearState(); navigate('host.html'); return;}
+  var rc=Math.random().toString(36).substr(2,4).toUpperCase();
+  var newScores={};
+  (state.players||[]).forEach(function(p){newScores[p]=0;});
+  saveState({phase:'loading',topic:state.topic,count:state.count,timer:state.timer,apiKey:state.apiKey,
+    roomCode:rc,players:state.players||[],scores:newScores,questions:[],currentQ:0,isHost:true});
+  navigate('loading.html');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz — Lobby</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="starfield"><canvas id="stars"></canvas></div>
+<div id="app">
+  <a class="logo" href="index.html">Quiz</a>
+  <div class="panel" style="max-width:460px;">
+
+    <div class="section-label">Room code</div>
+    <div class="room-code" id="codeDisplay">----</div>
+    <p class="muted text-center mb-2" style="font-size:0.78rem;">
+      Share with players on <a href="join.html" style="color:var(--accent);text-decoration:none;">join.html</a> — same network required for multi-device
+    </p>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Topic</div>
+    <p id="topicDisplay" style="font-size:0.95rem;margin:0.2rem 0 1rem;"></p>
+
+    <div class="section-label">Players</div>
+    <div class="chips-row" id="lobbyPlayers" style="margin-bottom:1rem;"></div>
+
+    <div style="display:flex;gap:6px;margin-bottom:1.25rem;">
+      <input class="input" id="lateInput" placeholder="Add player..." maxlength="20" style="flex:1;" />
+      <button class="btn btn-sm" onclick="addLate()">Add</button>
+    </div>
+
+    <p class="muted mb-2" style="font-size:0.78rem;" id="qInfo"></p>
+
+    <div style="display:flex;gap:0.4rem;margin-bottom:1.25rem;">
+      <span class="pulse-dot"></span>
+      <span class="pulse-dot"></span>
+      <span class="pulse-dot"></span>
+    </div>
+
+    <button class="btn btn-accent btn-block" onclick="begin()">Start game →</button>
+    <a href="host.html" class="btn btn-block mt-1">← Change settings</a>
+  </div>
+</div>
+
+<script src="js/shared.js"></script>
+<script>
+  initStarfield();
+
+  const state = loadState();
+  if (!state || state.phase !== 'lobby') { window.location.href = 'index.html'; }
+
+  let players = state.players || [];
+  let scores = state.scores || {};
+
+  document.getElementById('codeDisplay').textContent = state.roomCode;
+  document.getElementById('topicDisplay').textContent = state.topic;
+  document.getElementById('qInfo').textContent = `${state.questions.length} questions · ${state.timer}s each`;
+
+  function renderPlayers() {
+    const el = document.getElementById('lobbyPlayers');
+    if (!players.length) {
+      el.innerHTML = `<span class="muted" style="font-size:0.82rem;">No players yet</span>`;
+      return;
+    }
+    el.innerHTML = players.map((p, i) => `
+      <span class="player-pill">
+        ${renderAvatar(p, i, 20, '0.48rem')}
+        ${p}
+        <span style="cursor:pointer;color:var(--dim);margin-left:3px;" onclick="remove('${p.replace(/'/g,"\\'")}')">×</span>
+      </span>
+    `).join('');
+  }
+
+  function addLate() {
+    const inp = document.getElementById('lateInput');
+    const name = inp.value.trim();
+    if (!name || players.includes(name) || players.length >= 8) return;
+    players.push(name);
+    scores[name] = 0;
+    inp.value = '';
+    renderPlayers();
+  }
+
+  function remove(name) {
+    players = players.filter(p => p !== name);
+    delete scores[name];
+    renderPlayers();
+  }
+
+  document.getElementById('lateInput').addEventListener('keydown', e => { if (e.key === 'Enter') addLate(); });
+
+  function begin() {
+    if (!players.length) {
+      if (!confirm('No players — play solo?')) return;
+      players = ['You'];
+      scores['You'] = 0;
+    }
+    players.forEach(p => { if (!(p in scores)) scores[p] = 0; });
+    saveState({ ...state, phase: 'game', players, scores, currentQ: 0 });
+    window.location.href = 'game.html';
+  }
+
+  renderPlayers();
+</script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Quiz — Host</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    #app{justify-content:flex-start;padding-top:2rem;padding-bottom:2.5rem;}
+    .panel{max-width:560px;}
+  </style>
+</head>
+<body>
+<div class="bg">
+  <canvas id="bgStars"></canvas>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+  <div class="bg-dots"></div>
+  <div class="bg-grain"></div>
+</div>
+<div id="app">
+  <a href="index.html" class="wordmark wordmark-sm" style="text-decoration:none;margin-bottom:.2rem;">Quiz</a>
+  <div class="eyebrow">Host Setup</div>
+  <div class="panel">
+
+    <div class="field">
+      <label class="field-label">Topic</label>
+      <input class="input" id="topicInput" placeholder="e.g. World History, Science, Movies..."/>
+      <div class="chips-row" id="topicChips"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="field">
+        <label class="field-label">Questions — <span id="qCountLabel">6</span></label>
+        <input type="range" min="3" max="15" value="6" id="qCountSlider"
+          oninput="document.getElementById('qCountLabel').textContent=this.value;syncCount()"/>
+      </div>
+      <div class="field">
+        <label class="field-label">Seconds each — <span id="timerLabel">20</span>s</label>
+        <input type="range" min="10" max="60" step="5" value="20" id="timerSlider"
+          oninput="document.getElementById('timerLabel').textContent=this.value"/>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Players (same device)</label>
+      <div style="display:flex;gap:8px;">
+        <input class="input" id="playerInput" placeholder="Player name..." maxlength="20" style="flex:1;"/>
+        <button class="btn btn-ghost btn-sm" onclick="addPlayer()">Add</button>
+      </div>
+      <div class="chips-row" id="playerChips"></div>
+    </div>
+
+    <div class="divider"></div>
+    <p class="field-label" style="margin-bottom:.6rem;">Question source</p>
+    <div class="tab-row">
+      <button class="tab-btn active" id="tabManual" onclick="switchTab('manual')">✏️ Write questions</button>
+      <button class="tab-btn" id="tabAI" onclick="switchTab('ai')">✨ Generate with AI</button>
+    </div>
+
+    <div id="panelManual">
+      <div id="questionsList"></div>
+      <button class="btn btn-ghost btn-block btn-sm" onclick="addQ()" style="margin-bottom:.75rem;">+ Add question</button>
+    </div>
+
+    <div id="panelAI" style="display:none;">
+      <div class="field">
+        <label class="field-label">Anthropic API key</label>
+        <input class="input" id="apiKeyInput" type="password" placeholder="sk-ant-..."/>
+        <p class="muted mt-1" style="font-size:.72rem;">Used only in this session. Never stored or sent anywhere else.</p>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-block" id="launchBtn" onclick="launch()" style="margin-top:.5rem;">Start →</button>
+    <a href="index.html" class="btn btn-ghost btn-block mt-1">← Back</a>
+  </div>
+</div>
+<script src="js/shared.js"></script>
+<script>
+initBackground();
+
+var players=[], currentTab='manual', manualQs=[];
+
+var TOPICS=['World History','Science & Nature','Movies & TV','Music','Sports','Geography','Literature','Food & Drink','Technology','Art & Design'];
+document.getElementById('topicChips').innerHTML=TOPICS.map(function(t){
+  return '<span class="chip" onclick="setTopic('+JSON.stringify(t)+')">'+escHtml(t)+'</span>';
+}).join('');
+
+function setTopic(t){
+  document.getElementById('topicInput').value=t;
+  document.querySelectorAll('#topicChips .chip').forEach(function(c){c.classList.toggle('active',c.textContent.trim()===t);});
+}
+
+function addPlayer(){
+  var inp=document.getElementById('playerInput');
+  var name=inp.value.trim();
+  if(!name||players.indexOf(name)>-1||players.length>=8) return;
+  players.push(name); inp.value=''; renderPlayers();
+}
+document.getElementById('playerInput').addEventListener('keydown',function(e){if(e.key==='Enter')addPlayer();});
+
+function removePlayer(idx){players.splice(idx,1); renderPlayers();}
+
+function renderPlayers(){
+  document.getElementById('playerChips').innerHTML=players.map(function(p,i){
+    return '<span class="player-pill">'+renderAvatar(p,i,22,'0.5rem')+escHtml(p)+
+      '<span style="cursor:pointer;color:var(--text3);margin-left:4px;" onclick="removePlayer('+i+')">×</span></span>';
+  }).join('');
+}
+
+function switchTab(tab){
+  currentTab=tab;
+  document.getElementById('tabManual').classList.toggle('active',tab==='manual');
+  document.getElementById('tabAI').classList.toggle('active',tab==='ai');
+  document.getElementById('panelManual').style.display=tab==='manual'?'':'none';
+  document.getElementById('panelAI').style.display=tab==='ai'?'':'none';
+}
+
+function syncCount(){
+  var n=parseInt(document.getElementById('qCountSlider').value);
+  while(manualQs.length<n) manualQs.push({q:'',options:['','','',''],correct:0,explanation:''});
+  renderQs();
+}
+
+function addQ(){
+  manualQs.push({q:'',options:['','','',''],correct:0,explanation:''});
+  document.getElementById('qCountSlider').value=manualQs.length;
+  document.getElementById('qCountLabel').textContent=manualQs.length;
+  renderQs();
+}
+
+function removeQ(idx){
+  manualQs.splice(idx,1);
+  var v=Math.max(3,manualQs.length);
+  document.getElementById('qCountSlider').value=v;
+  document.getElementById('qCountLabel').textContent=v;
+  renderQs();
+}
+
+function renderQs(){
+  var L=['A','B','C','D'];
+  document.getElementById('questionsList').innerHTML=manualQs.map(function(q,qi){
+    return '<div class="q-builder-item">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">'+
+        '<span class="q-num">QUESTION '+(qi+1)+'</span>'+
+        '<button class="btn btn-danger btn-xs" onclick="removeQ('+qi+')">Remove</button>'+
+      '</div>'+
+      '<textarea class="input input-sm" placeholder="Question text..." rows="2" oninput="manualQs['+qi+'].q=this.value">'+escHtml(q.q)+'</textarea>'+
+      '<div class="options-grid" style="margin-top:.6rem;">'+
+        q.options.map(function(opt,oi){
+          return '<div class="option-wrap">'+
+            '<span class="option-letter">'+L[oi]+'</span>'+
+            '<input class="input input-sm" style="flex:1;" placeholder="Option '+L[oi]+'..." value="'+escHtml(opt)+'" oninput="manualQs['+qi+'].options['+oi+']=this.value"/>'+
+            '<input type="radio" class="option-radio" name="c_'+qi+'" value="'+oi+'" '+(q.correct===oi?'checked':'')+' onchange="manualQs['+qi+'].correct='+oi+'" title="Correct"/>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
+      '<p class="correct-hint">↑ Circle = correct answer</p>'+
+      '<textarea class="input input-sm" placeholder="Explanation (optional)..." rows="1" style="margin-top:.5rem;" oninput="manualQs['+qi+'].explanation=this.value">'+escHtml(q.explanation)+'</textarea>'+
+    '</div>';
+  }).join('');
+}
+syncCount();
+
+async function launch(){
+  var btn=document.getElementById('launchBtn');
+  btn.disabled=true; btn.textContent='Please wait...';
+
+  var topic=document.getElementById('topicInput').value.trim()||'General Knowledge';
+  var count=parseInt(document.getElementById('qCountSlider').value);
+  var timer=parseInt(document.getElementById('timerSlider').value);
+  var roomCode=Math.random().toString(36).substr(2,4).toUpperCase();
+  var scores={};
+  players.forEach(function(p){scores[p]=0;});
+
+  if(currentTab==='ai'){
+    var apiKey=document.getElementById('apiKeyInput').value.trim();
+    if(!apiKey){alert('Enter your Anthropic API key.');btn.disabled=false;btn.textContent='Start →';return;}
+    saveState({phase:'loading',topic:topic,count:count,timer:timer,apiKey:apiKey,roomCode:roomCode,players:players,scores:scores,questions:[],currentQ:0,isHost:true});
+    navigate('loading.html');
+    return;
+  }
+
+  // Manual mode
+  var filled=manualQs.filter(function(q){return q.q.trim()&&q.options.filter(function(o){return o.trim();}).length>=2;});
+  if(!filled.length){alert('Add at least one question with 2 or more answer options.');btn.disabled=false;btn.textContent='Start →';return;}
+
+  var questions=filled.map(function(q){
+    var opts=q.options.map(function(o){return o.trim();}).filter(Boolean);
+    return {q:q.q.trim(),options:opts,correct:Math.min(Number(q.correct),opts.length-1),explanation:q.explanation.trim()};
+  });
+  questions=shuffleAll(questions);
+
+  saveState({phase:'lobby',topic:topic,count:questions.length,timer:timer,apiKey:'',roomCode:roomCode,players:players,scores:scores,questions:questions,currentQ:0,isHost:true});
+  navigate('lobby.html');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Quiz — Lobby</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="bg">
+  <canvas id="bgStars"></canvas>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+  <div class="bg-dots"></div>
+  <div class="bg-grain"></div>
+</div>
+<div id="app">
+  <a href="index.html" class="wordmark wordmark-sm" style="text-decoration:none;margin-bottom:.15rem;">Quiz</a>
+  <div class="eyebrow" id="eyebrow">Lobby</div>
+
+  <div class="panel text-center" style="max-width:460px;">
+    <div class="tag-label">Room Code</div>
+    <div class="room-code-display" id="codeDisplay">----</div>
+    <p class="muted" style="font-size:.76rem;line-height:1.65;margin-bottom:1rem;" id="joinHint"></p>
+
+    <div class="divider"></div>
+
+    <div class="tag-label">Topic</div>
+    <p id="topicDisplay" style="font-size:1rem;font-weight:700;color:var(--text);margin:.25rem 0 1rem;font-family:'Syne',sans-serif;letter-spacing:-.01em;"></p>
+
+    <div class="tag-label">Players</div>
+    <div id="lobbyPlayers" style="margin-bottom:1rem;min-height:36px;"></div>
+
+    <!-- Host only: add late player -->
+    <div id="hostAdd" style="display:flex;gap:8px;margin-bottom:1.25rem;">
+      <input class="input" id="lateInput" placeholder="Add a player..." maxlength="20" style="flex:1;"/>
+      <button class="btn btn-ghost btn-sm" onclick="addLate()">Add</button>
+    </div>
+
+    <div style="display:flex;gap:.4rem;justify-content:center;margin-bottom:1.2rem;">
+      <span class="pulse-dot"></span>
+      <span class="pulse-dot"></span>
+      <span class="pulse-dot"></span>
+    </div>
+
+    <p class="muted mb-2" style="font-size:.8rem;" id="qInfo"></p>
+
+    <!-- Host controls -->
+    <div id="hostControls">
+      <button class="btn btn-primary btn-block" onclick="begin()">Start Game →</button>
+      <a href="host.html" class="btn btn-ghost btn-block mt-1">← Change settings</a>
+    </div>
+
+    <!-- Player controls -->
+    <div id="playerControls" style="display:none;">
+      <div class="alert alert-info" style="margin-bottom:1rem;">
+        Waiting for the host to start...
+      </div>
+      <button class="btn btn-ghost btn-block" onclick="leaveGame()">Leave game</button>
+    </div>
+  </div>
+</div>
+<script src="js/shared.js"></script>
+<script>
+initBackground();
+
+var state=loadState();
+if(!state||state.phase!=='lobby'){window.location.href='index.html';}
+
+var isHost=!!state.isHost;
+var players=state.players?state.players.slice():[];
+var scores=Object.assign({},state.scores||{});
+
+// Init UI
+document.getElementById('codeDisplay').textContent=state.roomCode;
+document.getElementById('topicDisplay').textContent=state.topic;
+document.getElementById('qInfo').textContent=state.questions.length+' question'+(state.questions.length!==1?'s':'')+' · '+state.timer+'s each';
+
+if(isHost){
+  document.getElementById('joinHint').innerHTML='Share this code — players join at <a href="join.html" style="color:var(--accent);text-decoration:none;">join.html</a>';
+}else{
+  document.getElementById('eyebrow').textContent='Waiting Room';
+  document.getElementById('joinHint').textContent='Waiting for the host to start the game.';
+  document.getElementById('hostControls').style.display='none';
+  document.getElementById('playerControls').style.display='';
+  document.getElementById('hostAdd').style.display='none';
+}
+
+function renderPlayers(){
+  var el=document.getElementById('lobbyPlayers');
+  if(!players.length){el.innerHTML='<span class="muted" style="font-size:.8rem;">No players yet — add some below</span>';return;}
+  el.innerHTML=players.map(function(p,i){
+    return '<div class="lobby-player-row">'+
+      renderAvatar(p,i,28,'0.58rem')+
+      '<span class="p-name">'+escHtml(p)+'</span>'+
+      (isHost?'<span style="cursor:pointer;color:var(--text3);font-size:1.1rem;padding:0 4px;" onclick="removePlayer('+i+')">×</span>':'')+
+    '</div>';
+  }).join('');
+}
+
+function addLate(){
+  if(!isHost)return;
+  var inp=document.getElementById('lateInput');
+  var name=inp.value.trim();
+  if(!name||players.indexOf(name)>-1||players.length>=8)return;
+  players.push(name); scores[name]=0; inp.value='';
+  saveState(Object.assign({},state,{players:players,scores:scores}));
+  renderPlayers();
+}
+
+function removePlayer(idx){
+  if(!isHost)return;
+  players.splice(idx,1);
+  var newScores={};
+  players.forEach(function(p){newScores[p]=scores[p]||0;});
+  scores=newScores;
+  saveState(Object.assign({},state,{players:players,scores:scores}));
+  renderPlayers();
+}
+
+document.getElementById('lateInput').addEventListener('keydown',function(e){if(e.key==='Enter')addLate();});
+
+function begin(){
+  if(!isHost)return;
+  if(!players.length){
+    if(!confirm('No players added — continue as a solo quiz?'))return;
+    players=['Solo']; scores['Solo']=0;
+  }
+  // Ensure all players have a score entry
+  players.forEach(function(p){if(!(p in scores))scores[p]=0;});
+  saveState(Object.assign({},state,{phase:'game',players:players,scores:scores,currentQ:0}));
+  navigate('game.html');
+}
+
+function leaveGame(){
+  // Player leaves — don't wipe state (host's game continues)
+  // Just navigate home without clearing
+  window.location.href='index.html';
+}
+
+renderPlayers();
+
+// Non-host: poll for changes — player list updates AND phase change (game start)
+if(!isHost){
+  startSync(function(s){
+    if(s.phase==='game'){stopSync();navigate('game.html');return;}
+    if(s.phase==='lobby'){
+      // Update player list if host added/removed someone
+      players=s.players||[];
+      scores=s.scores||{};
+      renderPlayers();
+    }
+  });
+}
+</script>
+</body>
+</html>

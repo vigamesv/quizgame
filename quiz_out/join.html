@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Quiz — Join</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="bg">
+  <canvas id="bgStars"></canvas>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+  <div class="bg-dots"></div>
+  <div class="bg-grain"></div>
+</div>
+<div id="app">
+  <a href="index.html" class="wordmark wordmark-sm" style="text-decoration:none;margin-bottom:.15rem;">Quiz</a>
+  <div class="eyebrow">Join Game</div>
+
+  <div class="panel">
+    <div class="field">
+      <label class="field-label">Your name</label>
+      <input class="input" id="joinName" placeholder="Your name..." maxlength="20" autofocus/>
+    </div>
+    <div class="field">
+      <label class="field-label">Room code</label>
+      <input class="input" id="joinCode" placeholder="XXXX" maxlength="4"
+        style="text-transform:uppercase;font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;letter-spacing:.22em;text-align:center;"
+        oninput="this.value=this.value.toUpperCase()"/>
+    </div>
+
+    <div class="alert alert-info" style="font-size:.78rem;line-height:1.65;margin-bottom:1rem;">
+      Multi-device: host and all players must open this from the same local server.<br>
+      Run <code style="color:var(--accent)">python3 -m http.server 8080</code> in the Quiz folder,<br>
+      then visit <code style="color:var(--accent)">http://YOUR_LOCAL_IP:8080</code> on each device.
+    </div>
+
+    <button class="btn btn-primary btn-block" onclick="tryJoin()">Join →</button>
+    <a href="index.html" class="btn btn-ghost btn-block mt-1">← Back</a>
+  </div>
+</div>
+<script src="js/shared.js"></script>
+<script>
+initBackground();
+
+function tryJoin(){
+  var name=document.getElementById('joinName').value.trim();
+  var code=document.getElementById('joinCode').value.trim().toUpperCase();
+  if(!name){alert('Enter your name first.');return;}
+  if(code.length!==4){alert('Room codes are 4 characters — check with your host.');return;}
+
+  var state=loadState();
+  if(!state){alert('No game found. Make sure the host has set up the game and you\'re on the same server.');return;}
+  if(state.roomCode!==code){alert('Room code "'+code+'" not found. Double-check with your host.');return;}
+
+  // Add the player if they're not already in the list
+  if(state.players.indexOf(name)===-1){
+    state.players.push(name);
+    state.scores[name]=0;
+  }
+  // Mark this tab as non-host
+  state.isHost=false;
+  saveState(state);
+
+  var dest={lobby:'lobby.html',game:'game.html',results:'results.html',loading:'loading.html'};
+  navigate(dest[state.phase]||'lobby.html');
+}
+
+document.getElementById('joinCode').addEventListener('keydown',function(e){if(e.key==='Enter')tryJoin();});
+document.getElementById('joinName').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('joinCode').focus();});
+</script>
+</body>
+</html>

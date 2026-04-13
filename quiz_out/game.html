@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Quiz — Game</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    #app{justify-content:flex-start;padding-top:1.5rem;padding-bottom:2rem;}
+    .game-wrap{width:100%;max-width:700px;}
+    .q-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem;}
+    .q-meta{font-family:var(--fm);font-size:.65rem;letter-spacing:.1em;color:var(--text2);}
+    .q-topic{font-family:var(--fm);font-size:.62rem;color:var(--text3);max-width:160px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .q-row{display:flex;align-items:flex-start;gap:1.25rem;}
+    .q-text{font-size:1.18rem;line-height:1.5;flex:1;font-weight:500;}
+  </style>
+</head>
+<body>
+<div class="bg">
+  <canvas id="bgStars"></canvas>
+  <div class="bg-orb bg-orb-1" style="opacity:.3;"></div>
+  <div class="bg-orb bg-orb-2" style="opacity:.25;"></div>
+  <div class="bg-dots"></div>
+  <div class="bg-grain"></div>
+</div>
+<div id="app">
+  <div class="game-wrap">
+
+    <div class="score-strip" id="scoreStrip"></div>
+
+    <div class="q-header">
+      <span class="q-meta" id="qMeta">Q 1 / 6</span>
+      <span class="q-topic" id="qTopic"></span>
+    </div>
+
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+
+    <div class="q-row" style="margin-bottom:0;">
+      <p class="q-text" id="qText"></p>
+      <div class="timer-ring">
+        <svg width="68" height="68" viewBox="0 0 68 68">
+          <circle class="bg" cx="34" cy="34" r="28"/>
+          <circle class="fg" id="timerArc" cx="34" cy="34" r="28" stroke-dasharray="175.9" stroke-dashoffset="0"/>
+        </svg>
+        <div class="timer-num" id="timerDisplay">20</div>
+      </div>
+    </div>
+
+    <div class="answer-grid" id="answersEl"></div>
+    <div id="buzzSection"></div>
+    <div class="who-buzzed" id="whoBuzzed"></div>
+    <div class="explanation" id="explanationEl"></div>
+
+    <div id="nextHostArea" style="display:none;">
+      <button class="btn btn-primary btn-block mt-2" onclick="nextQ()">Next →</button>
+    </div>
+    <div id="nextPlayerArea" style="display:none;">
+      <p class="muted text-center mt-2" style="font-size:.82rem;">Waiting for host...</p>
+    </div>
+
+  </div>
+</div>
+<script src="js/shared.js"></script>
+<script>
+initBackground();
+
+var state=loadState();
+if(!state||state.phase!=='game'||!state.questions||!state.questions.length){window.location.href='index.html';}
+
+var isHost=!!state.isHost;
+var questions=state.questions;
+var players=state.players||[];
+var scores=Object.assign({},state.scores||{});
+var maxTime=state.timer||20;
+var topic=state.topic||'';
+var currentQ=Number(state.currentQ)||0;
+var timeLeft=maxTime, answered=false, buzzedPlayer=null, timerInterval=null;
+var ARC=175.9;
+
+document.getElementById('qTopic').textContent=topic;
+
+function renderStrip(){
+  var sorted=players.slice().sort(function(a,b){return (scores[b]||0)-(scores[a]||0);});
+  document.getElementById('scoreStrip').innerHTML=sorted.map(function(p){
+    return '<span class="score-chip">'+renderAvatar(p,players.indexOf(p),20,'0.48rem')+
+      '<span>'+escHtml(p)+'</span><span class="pts">'+(scores[p]||0)+'</span></span>';
+  }).join('');
+}
+
+function showQuestion(){
+  clearInterval(timerInterval);
+  stopSync();
+
+  var q=questions[currentQ];
+  if(!q){endGame();return;}
+
+  answered=false; buzzedPlayer=null; timeLeft=maxTime;
+
+  document.getElementById('qMeta').textContent='Q '+(currentQ+1)+' / '+questions.length;
+  document.getElementById('qText').textContent=q.q;
+  document.getElementById('progressFill').style.width=((currentQ/questions.length)*100)+'%';
+  document.getElementById('explanationEl').className='explanation';
+  document.getElementById('nextHostArea').style.display='none';
+  document.getElementById('nextPlayerArea').style.display='none';
+  document.getElementById('whoBuzzed').textContent='';
+
+  var multi=players.length>1;
+  var L=['A','B','C','D'];
+  var opts=q.options||[];
+  document.getElementById('answersEl').innerHTML=opts.map(function(opt,i){
+    return '<button class="answer-btn" id="ans'+i+'" onclick="pick('+i+')"'+(multi?' disabled':'')+'>'+
+      '<span class="letter">'+L[i]+'</span><span>'+escHtml(opt)+'</span></button>';
+  }).join('');
+
+  if(multi) renderBuzz();
+  else document.getElementById('buzzSection').innerHTML='';
+
+  updateArc(1);
+  document.getElementById('timerDisplay').textContent=maxTime;
+  document.getElementById('timerDisplay').style.color='var(--text)';
+  document.getElementById('timerArc').style.stroke='var(--accent)';
+  startTimer();
+  renderStrip();
+
+  // Non-host: always poll — they need to detect nextQ or results even if they haven't answered
+  if(!isHost){
+    startSync(function(s){
+      if(s.phase==='results'){stopSync();navigate('results.html');return;}
+      if(s.phase==='game'&&s.currentQ!==currentQ){
+        stopSync();
+        currentQ=Number(s.currentQ);
+        scores=Object.assign({},s.scores||{});
+        state=s;
+        transitionToNextQ();
+      }
+    });
+  }
+}
+
+function renderBuzz(){
+  document.getElementById('buzzSection').innerHTML='<p class="buzz-label">Buzz in</p>'+
+    players.map(function(p,i){
+      return '<button class="buzz-player-btn" id="buzz_'+i+'" onclick="doBuzz('+JSON.stringify(p)+')">'+
+        renderAvatar(p,i,26,'0.58rem')+'<span>'+escHtml(p)+'</span></button>';
+    }).join('');
+}
+
+function doBuzz(player){
+  if(answered||buzzedPlayer)return;
+  buzzedPlayer=player;
+  document.getElementById('whoBuzzed').textContent=player+' buzzed in';
+  players.forEach(function(_,i){var b=document.getElementById('buzz_'+i);if(b)b.disabled=true;});
+  var bi=players.indexOf(player);
+  var bb=document.getElementById('buzz_'+bi);
+  if(bb)bb.classList.add('buzzed');
+  // Enable answer buttons for the player who buzzed
+  var opts=questions[currentQ].options||[];
+  opts.forEach(function(_,i){var a=document.getElementById('ans'+i);if(a)a.disabled=false;});
+}
+
+function pick(idx){
+  if(answered)return;
+  answered=true;
+  clearInterval(timerInterval);
+  stopSync(); // stop polling while showing answer
+
+  var q=questions[currentQ];
+  var correct=Number(q.correct);
+  var scorer=buzzedPlayer||(players.length===1?players[0]:null);
+  var opts=q.options||[];
+
+  for(var i=0;i<opts.length;i++){
+    var btn=document.getElementById('ans'+i);
+    if(!btn)continue;
+    btn.disabled=true;
+    if(i===correct) btn.classList.add('correct');
+    else if(i===idx&&i!==correct) btn.classList.add('wrong');
+  }
+  players.forEach(function(_,i){var b=document.getElementById('buzz_'+i);if(b)b.disabled=true;});
+
+  if(scorer){
+    if(idx===correct){
+      var pts=Math.max(100,Math.round((timeLeft/maxTime)*1000));
+      scores[scorer]=(scores[scorer]||0)+pts;
+      document.getElementById('whoBuzzed').innerHTML='<span style="color:var(--green)">✓ '+escHtml(scorer)+' +'+pts+' pts</span>';
+    }else{
+      document.getElementById('whoBuzzed').innerHTML='<span style="color:var(--red)">✗ '+escHtml(scorer)+' — wrong</span>';
+    }
+  }
+
+  if(q.explanation){
+    document.getElementById('explanationEl').textContent=q.explanation;
+    document.getElementById('explanationEl').classList.add('visible');
+  }
+
+  renderStrip();
+  // Persist scores (all tabs can read updated scores)
+  saveState(Object.assign({},state,{scores:scores,currentQ:currentQ}));
+
+  if(isHost){
+    document.getElementById('nextHostArea').style.display='';
+  }else{
+    document.getElementById('nextPlayerArea').style.display='';
+    // Resume polling so player advances when host clicks Next
+    startSync(function(s){
+      if(s.phase==='results'){stopSync();navigate('results.html');return;}
+      if(s.phase==='game'&&s.currentQ!==currentQ){
+        stopSync();
+        currentQ=Number(s.currentQ);
+        scores=Object.assign({},s.scores||{});
+        state=s;
+        transitionToNextQ();
+      }
+    });
+  }
+}
+
+function updateArc(f){document.getElementById('timerArc').style.strokeDashoffset=ARC*(1-f);}
+
+function startTimer(){
+  clearInterval(timerInterval);
+  timerInterval=setInterval(function(){
+    timeLeft--;
+    document.getElementById('timerDisplay').textContent=timeLeft;
+    updateArc(timeLeft/maxTime);
+    if(timeLeft<=5){
+      document.getElementById('timerDisplay').style.color='var(--red)';
+      document.getElementById('timerArc').style.stroke='var(--red)';
+    }
+    if(timeLeft<=0){
+      clearInterval(timerInterval);
+      if(!answered){
+        answered=true;
+        var q=questions[currentQ];
+        var opts=q.options||[];
+        var cb=document.getElementById('ans'+Number(q.correct));
+        if(cb)cb.classList.add('correct');
+        for(var i=0;i<opts.length;i++){var b=document.getElementById('ans'+i);if(b)b.disabled=true;}
+        players.forEach(function(_,i){var bz=document.getElementById('buzz_'+i);if(bz)bz.disabled=true;});
+        document.getElementById('whoBuzzed').innerHTML='<span style="color:var(--red)">⏰ Time\'s up</span>';
+        if(q.explanation){document.getElementById('explanationEl').textContent=q.explanation;document.getElementById('explanationEl').classList.add('visible');}
+        renderStrip();
+        saveState(Object.assign({},state,{scores:scores,currentQ:currentQ}));
+        if(isHost){document.getElementById('nextHostArea').style.display='';}
+        else{
+          document.getElementById('nextPlayerArea').style.display='';
+          startSync(function(s){
+            if(s.phase==='results'){stopSync();navigate('results.html');return;}
+            if(s.phase==='game'&&s.currentQ!==currentQ){stopSync();currentQ=Number(s.currentQ);scores=Object.assign({},s.scores||{});state=s;transitionToNextQ();}
+          });
+        }
+      }
+    }
+  },1000);
+}
+
+function transitionToNextQ(){
+  var wrap=document.querySelector('.game-wrap');
+  if(!wrap){showQuestion();return;}
+  wrap.style.transition='opacity .17s ease, transform .17s ease';
+  wrap.style.opacity='0'; wrap.style.transform='translateY(-8px)';
+  setTimeout(function(){
+    wrap.style.transition=''; wrap.style.opacity=''; wrap.style.transform='';
+    wrap.style.animation='pageIn .28s ease both';
+    showQuestion();
+    setTimeout(function(){wrap.style.animation='';},300);
+  },175);
+}
+
+function nextQ(){
+  if(!isHost)return;
+  stopSync();
+  clearInterval(timerInterval);
+  currentQ++;
+  if(currentQ>=questions.length){
+    endGame();
+  }else{
+    saveState(Object.assign({},state,{scores:scores,currentQ:currentQ}));
+    transitionToNextQ();
+  }
+}
+
+function endGame(){
+  saveState(Object.assign({},state,{scores:scores,currentQ:currentQ,phase:'results'}));
+  navigate('results.html');
+}
+
+showQuestion();
+</script>
+</body>
+</html>

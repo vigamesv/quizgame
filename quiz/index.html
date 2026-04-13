@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="starfield"><canvas id="stars"></canvas></div>
+<div id="app">
+  <div class="logo">Quiz</div>
+  <div class="panel">
+    <div class="mode-cards">
+      <a class="mode-card" href="host.html">
+        <span class="icon">→</span>
+        <h3>Host</h3>
+        <p>Set up a game and run it for your group</p>
+      </a>
+      <a class="mode-card" href="join.html">
+        <span class="icon">↗</span>
+        <h3>Join</h3>
+        <p>Enter a code to join a game in progress</p>
+      </a>
+    </div>
+    <div class="divider"></div>
+    <p class="muted text-center" style="font-size:0.78rem;line-height:1.6;">
+      Everyone on the same device? Use Host and add players there.<br>
+      Multi-device needs a local server — see <code>README.md</code>.
+    </p>
+  </div>
+</div>
+<script src="js/shared.js"></script>
+<script>
+  initStarfield();
+  clearState();
+</script>
+</body>
+</html>

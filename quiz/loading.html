@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz — Loading</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="starfield"><canvas id="stars"></canvas></div>
+<div id="app">
+  <div class="panel text-center">
+    <div class="loader">
+      <div class="spin"></div>
+      <p style="font-family:'IBM Plex Mono',monospace;font-size:0.78rem;letter-spacing:0.1em;color:var(--muted);" id="status">Generating questions</p>
+      <p class="muted mt-1" style="font-size:0.8rem;" id="sub">This usually takes a few seconds.</p>
+    </div>
+  </div>
+</div>
+
+<script src="js/shared.js"></script>
+<script>
+  initStarfield();
+
+  async function run() {
+    const state = loadState();
+    if (!state) { window.location.href = 'index.html'; return; }
+
+    try {
+      const questions = await generateQuestions(state.topic, state.count, state.apiKey);
+      saveState({ ...state, phase: 'lobby', questions });
+      window.location.href = 'lobby.html';
+    } catch(e) {
+      document.getElementById('status').textContent = 'Something went wrong';
+      document.getElementById('sub').innerHTML = `<span style="color:var(--red);font-size:0.8rem;">${e.message}</span><br><br><a href="host.html" class="btn btn-sm" style="display:inline-flex;margin-top:0.5rem;">← Try again</a>`;
+    }
+  }
+
+  run();
+</script>
+</body>
+</html>
